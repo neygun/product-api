@@ -10,3 +10,4 @@ add-enum-types = true
   user   = "postgres"
   pass   = "postgres"
   sslmode = "disable"
+  blacklist = ["schema_migrations"]
