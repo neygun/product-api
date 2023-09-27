@@ -6,5 +6,5 @@ import (
 )
 
 func (productServiceImpl ProductServiceImpl) GetAll(ctx context.Context) ([]model.Product, error) {
-	return productServiceImpl.ProductRepository.GetAll(ctx)
+	return productServiceImpl.productRepository.GetAll(ctx)
 }

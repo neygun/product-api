@@ -6,5 +6,5 @@ import (
 )
 
 func (productServiceImpl ProductServiceImpl) Create(ctx context.Context, product model.Product) error {
-	return productServiceImpl.ProductRepository.Create(ctx, product)
+	return productServiceImpl.productRepository.Create(ctx, product)
 }

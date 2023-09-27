@@ -3,5 +3,5 @@ package service
 import "context"
 
 func (productServiceImpl ProductServiceImpl) Delete(ctx context.Context, id int64) error {
-	return productServiceImpl.ProductRepository.Delete(ctx, id)
+	return productServiceImpl.productRepository.Delete(ctx, id)
 }

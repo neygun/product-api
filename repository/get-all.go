@@ -4,13 +4,11 @@ import (
 	"chi-demo/model"
 	models "chi-demo/my_models"
 	"context"
-	"log"
 )
 
 func (i ProductRepositoryImpl) GetAll(ctx context.Context) ([]model.Product, error) {
 	products, err := models.Products().All(ctx, i.db)
 	if err != nil {
-		log.Println(err)
 		return nil, err
 	}
 

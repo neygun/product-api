@@ -14,5 +14,11 @@ type ProductService interface {
 }
 
 type ProductServiceImpl struct {
-	ProductRepository repository.ProductRepository
+	productRepository repository.ProductRepository
+}
+
+func New(productRepository repository.ProductRepository) ProductService {
+	return ProductServiceImpl{
+		productRepository: productRepository,
+	}
 }

@@ -1,10 +1,10 @@
 package handler
 
 import (
+	"chi-demo/log"
 	"chi-demo/model"
 	"chi-demo/service"
 	"encoding/json"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -24,7 +24,7 @@ func (e HandlerErr) Error() string {
 	return e.Description
 }
 
-func ErrHandler(handlerFunc func(w http.ResponseWriter, r *http.Request) error) func(http.ResponseWriter, *http.Request) {
+func ErrHandler(handlerFunc func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := handlerFunc(w, r); err != nil {
 			herr, ok := err.(HandlerErr)
@@ -36,7 +36,7 @@ func ErrHandler(handlerFunc func(w http.ResponseWriter, r *http.Request) error) 
 					Description: herr.Description,
 				})
 
-				log.Printf("error %s\n", err.Error())
+				log.GetLogger().Printf("error %s\n", err.Error())
 
 				return
 			}
@@ -48,116 +48,124 @@ func ErrHandler(handlerFunc func(w http.ResponseWriter, r *http.Request) error) 
 				Description: "Internal Server Error",
 			})
 
-			log.Printf("error %s\n", err.Error())
+			log.GetLogger().Printf("error %s\n", err.Error())
 		}
 	}
 }
 
-func (productHandler ProductHandler) GetOne(w http.ResponseWriter, r *http.Request) error {
-	idParam := chi.URLParam(r, "id")
+func (productHandler ProductHandler) GetOne() http.HandlerFunc {
+	return ErrHandler(func(w http.ResponseWriter, r *http.Request) error {
+		idParam := chi.URLParam(r, "id")
 
-	// convert id to int
-	id, err := strconv.Atoi(idParam)
-	if err != nil {
-		return HandlerErr{
-			Code:        http.StatusBadRequest,
-			Description: "Cannot convert id to integer",
+		// convert id to int
+		id, err := strconv.ParseInt(idParam, 10, 64)
+		if err != nil {
+			return HandlerErr{
+				Code:        http.StatusBadRequest,
+				Description: "Cannot convert id to integer",
+			}
 		}
-	}
 
-	// check if id > 0
-	if id < 0 {
-		return HandlerErr{
-			Code:        http.StatusBadRequest,
-			Description: "Invalid id",
+		// check if id > 0
+		if id < 0 {
+			return HandlerErr{
+				Code:        http.StatusBadRequest,
+				Description: "Invalid id",
+			}
 		}
-	}
 
-	product, err := productHandler.ProductService.GetOne(r.Context(), int64(id))
-	if err != nil {
-		return err
-	}
-
-	json.NewEncoder(w).Encode(product)
-	return nil
-}
-
-func (productHandler ProductHandler) GetProducts(w http.ResponseWriter, r *http.Request) error {
-	products, err := productHandler.ProductService.GetAll(r.Context())
-	if err != nil {
-		return err
-	}
-	json.NewEncoder(w).Encode(products)
-	return nil
-}
-
-func (productHandler ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) error {
-	var inputProduct model.Product
-	if err := json.NewDecoder(r.Body).Decode(&inputProduct); err != nil {
-		return HandlerErr{
-			Code:        http.StatusBadRequest,
-			Description: "Invalid product",
+		product, err := productHandler.ProductService.GetOne(r.Context(), id)
+		if err != nil {
+			return err
 		}
-	}
 
-	// check if fields exist
-	if inputProduct.Name == "" || inputProduct.Price == 0 {
-		return HandlerErr{
-			Code:        http.StatusBadRequest,
-			Description: "Missing field",
-		}
-	}
-
-	// check if price > 0
-	if inputProduct.Price < 0 {
-		return HandlerErr{
-			Code:        http.StatusBadRequest,
-			Description: "Invalid price",
-		}
-	}
-
-	err := productHandler.ProductService.Create(r.Context(), inputProduct)
-	if err != nil {
-		// log.Printf("Error when create product: %s", err.Error())
-		return err
-	}
-
-	json.NewEncoder(w).Encode(model.Response{
-		Code:        http.StatusOK,
-		Description: "Product created",
+		json.NewEncoder(w).Encode(product)
+		return nil
 	})
-
-	return nil
 }
 
-func (productHandler ProductHandler) DeleteProduct(w http.ResponseWriter, r *http.Request) error {
-	idParam := chi.URLParam(r, "id")
-
-	// convert id to int
-	id, err := strconv.Atoi(idParam)
-	if err != nil {
-		return HandlerErr{
-			Code:        http.StatusBadRequest,
-			Description: "Cannot convert id to integer",
+func (productHandler ProductHandler) GetProducts() http.HandlerFunc {
+	return ErrHandler(func(w http.ResponseWriter, r *http.Request) error {
+		products, err := productHandler.ProductService.GetAll(r.Context())
+		if err != nil {
+			return err
 		}
-	}
-
-	// check if id > 0
-	if id < 0 {
-		return HandlerErr{
-			Code:        http.StatusBadRequest,
-			Description: "Invalid id",
-		}
-	}
-
-	err = productHandler.ProductService.Delete(r.Context(), int64(id))
-	if err != nil {
-		return err
-	}
-
-	json.NewEncoder(w).Encode(model.Response{
-		Code:        http.StatusOK,
-		Description: "Product deleted",
+		json.NewEncoder(w).Encode(products)
+		return nil
 	})
-	return nil
+}
+
+func (productHandler ProductHandler) CreateProduct() http.HandlerFunc {
+	return ErrHandler(func(w http.ResponseWriter, r *http.Request) error {
+		var inputProduct model.Product
+		if err := json.NewDecoder(r.Body).Decode(&inputProduct); err != nil {
+			return HandlerErr{
+				Code:        http.StatusBadRequest,
+				Description: "Invalid product",
+			}
+		}
+
+		// check if fields exist
+		if inputProduct.Name == "" || inputProduct.Price == 0 {
+			return HandlerErr{
+				Code:        http.StatusBadRequest,
+				Description: "Missing field",
+			}
+		}
+
+		// check if price > 0
+		if inputProduct.Price < 0 {
+			return HandlerErr{
+				Code:        http.StatusBadRequest,
+				Description: "Invalid price",
+			}
+		}
+
+		err := productHandler.ProductService.Create(r.Context(), inputProduct)
+		if err != nil {
+			// log.Printf("Error when create product: %s", err.Error())
+			return err
+		}
+
+		json.NewEncoder(w).Encode(model.Response{
+			Code:        http.StatusOK,
+			Description: "Product created",
+		})
+
+		return nil
+	})
+}
+
+func (productHandler ProductHandler) DeleteProduct() http.HandlerFunc {
+	return ErrHandler(func(w http.ResponseWriter, r *http.Request) error {
+		idParam := chi.URLParam(r, "id")
+
+		// convert id to int
+		id, err := strconv.ParseInt(idParam, 10, 64)
+		if err != nil {
+			return HandlerErr{
+				Code:        http.StatusBadRequest,
+				Description: "Cannot convert id to integer",
+			}
+		}
+
+		// check if id > 0
+		if id < 0 {
+			return HandlerErr{
+				Code:        http.StatusBadRequest,
+				Description: "Invalid id",
+			}
+		}
+
+		err = productHandler.ProductService.Delete(r.Context(), id)
+		if err != nil {
+			return err
+		}
+
+		json.NewEncoder(w).Encode(model.Response{
+			Code:        http.StatusOK,
+			Description: "Product deleted",
+		})
+		return nil
+	})
 }
