@@ -20,8 +20,8 @@ func (i ProductRepositoryImpl) Create(ctx context.Context, product model.Product
 		Price: product.Price,
 	}
 
-	if err = p.Insert(ctx, i.db, boil.Infer()); err != nil {
-		return fmt.Errorf("%w", err)
+	if err := p.Insert(ctx, i.db, boil.Infer()); err != nil {
+		return err
 	}
 
 	return nil

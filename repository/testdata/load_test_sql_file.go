@@ -1,7 +1,7 @@
 package testdata
 
 import (
-	"database/sql"
+	"chi-demo/db"
 	"os"
 	"testing"
 
@@ -9,7 +9,7 @@ import (
 )
 
 // LoadTestSQLFile load test sql data from a file
-func LoadTestSQLFile(t *testing.T, tx *sql.Tx, filename string) {
+func LoadTestSQLFile(t *testing.T, tx db.ContextExecutor, filename string) {
 	body, err := os.ReadFile(filename)
 	require.NoError(t, err)
 

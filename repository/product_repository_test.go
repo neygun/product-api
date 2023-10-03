@@ -1,125 +1,240 @@
 package repository
 
 import (
+	"chi-demo/db"
+	"chi-demo/model"
+	"chi-demo/repository/testdata"
 	"context"
 	"database/sql"
 	"errors"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 )
 
-func TestImpl_GetByStatusAndLimit(t *testing.T) {
+func TestImpl_Create(t *testing.T) {
 	type args struct {
-		givenStatus enum.PaymentStatus
 		expDBFailed bool
-		givenLimit  int
-		expRs       []model.Payment
 		expErr      error
 	}
 
 	tcs := map[string]args{
 		"success": {
-			givenStatus: enum.PaymentStatusPending,
-			givenLimit:  100,
-			expRs: []model.Payment{
-				{
-					ID:                     1000,
-					BillingOrderID:         "999999999",
-					TransactionReferenceID: "txn_ref_id",
-					IamID:                  "auth0|5d4b5e6f7g8h9i0j1k2l3m4",
-					Amount:                 500,
-					Points:                 500,
-					Currency:               enum.CurrencySGD,
-					Type:                   enum.PaymentTypeUtilitiesAdhocPay,
-					Status:                 enum.PaymentStatusPending,
-					TransactionID:          0,
-				},
-				{
-					ID:                     1001,
-					BillingOrderID:         "888888888",
-					TransactionReferenceID: "txn_ref_id_2",
-					IamID:                  "auth0|fdsfdsfdsfsdfsdfsdfdfgfg",
-					Amount:                 500,
-					Points:                 500,
-					Currency:               enum.CurrencySGD,
-					Type:                   enum.PaymentTypeUtilitiesAdhocPay,
-					Status:                 enum.PaymentStatusPending,
-					TransactionID:          0,
-				},
-			},
-		},
-		"empty": {
-			givenStatus: enum.PaymentStatusCancelled,
-			givenLimit:  100,
-			expRs:       []model.Payment{},
+			expErr: nil,
 		},
 		"error: db failed": {
-			givenStatus: enum.PaymentStatusPending,
-			givenLimit:  100,
 			expDBFailed: true,
-			expErr:      errors.New("sql: database is closed"),
+			expErr:      errors.New("models: unable to insert into product: sql: database is closed"),
 		},
 	}
 
 	for name, tc := range tcs {
 		t.Run(name, func(t *testing.T) {
 			ctx := context.Background()
-
-			connectionStr := "postgres://postgres:postgres@localhost:5432/scc-pg?sslmode=disable"
-			db, err := sql.Open("postgres", connectionStr)
-			require.NoError(t, err)
-
-			tx, err := db.BeginTx(ctx, &sql.TxOptions{})
-			require.NoError(t, err)
-			defer tx.Rollback()
-
-			tx.Exec("INSERT...")
-			repo := New(tx)
-
-			// When
-			result, err := repo.GetByStatusAndLimit(ctx, tc.givenStatus, tc.givenLimit)
-
-			// Then
-			if tc.expErr != nil {
-				require.EqualError(t, err, tc.expErr.Error())
-			} else {
-				require.NoError(t, err)
-				if !cmp.Equal(tc.expRs, result,
-					cmpopts.IgnoreFields(model.Payment{}, "CreatedAt", "UpdatedAt")) {
-					t.Errorf("\n order mismatched. \n expected: %+v \n got: %+v \n diff: %+v", tc.expRs, result,
-						cmp.Diff(tc.expRs, result, cmpopts.IgnoreFields(model.Payment{}, "CreatedAt", "UpdatedAt")))
-					t.FailNow()
+			TestWithTxDB(t, func(tx db.ContextExecutor) {
+				// Given
+				repo := New(tx)
+				if tc.expDBFailed {
+					dbMock, _, _ := sqlmock.New()
+					dbMock.Close()
+					repo = New(dbMock)
 				}
-			}
+				testdata.LoadTestSQLFile(t, tx, "testdata/create_product.sql")
 
-			// testpg.WithTxDB(t, func(tx pg.BeginnerExecutor) {
-			// 	// Given
-			// 	instance := New(tx)
-			// 	if tc.expDBFailed {
-			// 		dbMock := sqlmock.New()
-			// 		dbMock.Close()
-			// 		instance = New(dbMock)
-			// 	}
-			// 	LoadTestSQLFile(t, tx, "testdata/get_all_products.sql")
-			// 	// When
-			// 	result, err := instance.GetByStatusAndLimit(ctx, tc.givenStatus, tc.givenLimit)
+				// When
+				product := model.Product{
+					ID:    1,
+					Name:  "test",
+					Price: 1,
+				}
+				err := repo.Create(ctx, product)
 
-			// 	// Then
-			// 	if tc.expErr != nil {
-			// 		require.EqualError(t, err, tc.expErr.Error())
-			// 	} else {
-			// 		require.NoError(t, err)
-			// 		if !cmp.Equal(tc.expRs, result,
-			// 			cmpopts.IgnoreFields(model.Payment{}, "CreatedAt", "UpdatedAt")) {
-			// 			t.Errorf("\n order mismatched. \n expected: %+v \n got: %+v \n diff: %+v", tc.expRs, result,
-			// 				cmp.Diff(tc.expRs, result, cmpopts.IgnoreFields(model.Payment{}, "CreatedAt", "UpdatedAt")))
-			// 			t.FailNow()
-			// 		}
-			// 	}
-			// })
+				// Then
+				if tc.expErr != nil {
+					require.EqualError(t, err, tc.expErr.Error())
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		})
+	}
+}
+
+func TestImpl_GetById(t *testing.T) {
+	type args struct {
+		givenID     int64
+		expDBFailed bool
+		expRs       model.Product
+		expErr      error
+	}
+
+	tcs := map[string]args{
+		"success": {
+			givenID: 1,
+			expRs: model.Product{
+				ID:    1,
+				Name:  "test",
+				Price: 1,
+			},
+		},
+		"error: not found": {
+			givenID: 1000,
+			expErr:  sql.ErrNoRows,
+		},
+		"error: db failed": {
+			givenID:     1,
+			expDBFailed: true,
+			expErr:      errors.New("models: failed to execute a one query for product: bind failed to execute query: sql: database is closed"),
+		},
+	}
+
+	for name, tc := range tcs {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			TestWithTxDB(t, func(tx db.ContextExecutor) {
+				// Given
+				repo := New(tx)
+				if tc.expDBFailed {
+					dbMock, _, _ := sqlmock.New()
+					dbMock.Close()
+					repo = New(dbMock)
+				}
+				testdata.LoadTestSQLFile(t, tx, "testdata/get_product_by_id.sql")
+
+				// When
+				result, err := repo.GetOne(ctx, tc.givenID)
+
+				// Then
+				if tc.expErr != nil {
+					require.EqualError(t, err, tc.expErr.Error())
+				} else {
+					require.NoError(t, err)
+					if !cmp.Equal(tc.expRs, result,
+						cmpopts.IgnoreFields(model.Product{}, "CreatedAt", "UpdatedAt", "DeletedAt")) {
+						t.Errorf("\n order mismatched. \n expected: %+v \n got: %+v \n diff: %+v", tc.expRs, result,
+							cmp.Diff(tc.expRs, result, cmpopts.IgnoreFields(model.Product{}, "CreatedAt", "UpdatedAt", "DeletedAt")))
+						t.FailNow()
+					}
+				}
+			})
+		})
+	}
+}
+
+func TestImpl_GetAll(t *testing.T) {
+	type args struct {
+		expDBFailed bool
+		expRs       []model.Product
+		expErr      error
+	}
+
+	tcs := map[string]args{
+		"success": {
+			expRs: []model.Product{
+				{
+					ID:    1,
+					Name:  "test1",
+					Price: 1,
+				},
+				{
+					ID:    2,
+					Name:  "test2",
+					Price: 2,
+				},
+			},
+		},
+		"empty": {
+			expRs: []model.Product{},
+		},
+		"error: db failed": {
+			expDBFailed: true,
+			expErr:      errors.New("models: failed to assign all query results to Product slice: bind failed to execute query: sql: database is closed"),
+		},
+	}
+
+	for name, tc := range tcs {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			TestWithTxDB(t, func(tx db.ContextExecutor) {
+				// Given
+				repo := New(tx)
+				if tc.expDBFailed {
+					dbMock, _, _ := sqlmock.New()
+					dbMock.Close()
+					repo = New(dbMock)
+				}
+				testdata.LoadTestSQLFile(t, tx, "testdata/get_all_products.sql")
+
+				// When
+				result, err := repo.GetAll(ctx)
+
+				// Then
+				if tc.expErr != nil {
+					require.EqualError(t, err, tc.expErr.Error())
+				} else {
+					require.NoError(t, err)
+					if !cmp.Equal(tc.expRs, result,
+						cmpopts.IgnoreFields(model.Product{}, "CreatedAt", "UpdatedAt", "DeletedAt")) {
+						t.Errorf("\n order mismatched. \n expected: %+v \n got: %+v \n diff: %+v", tc.expRs, result,
+							cmp.Diff(tc.expRs, result, cmpopts.IgnoreFields(model.Product{}, "CreatedAt", "UpdatedAt", "DeletedAt")))
+						t.FailNow()
+					}
+				}
+			})
+		})
+	}
+}
+
+func TestImpl_DeleteById(t *testing.T) {
+	type args struct {
+		givenID     int64
+		expDBFailed bool
+		expErr      error
+	}
+
+	tcs := map[string]args{
+		"success": {
+			givenID: 1,
+			expErr:  nil,
+		},
+		"error: not found": {
+			givenID: 1000,
+			expErr:  sql.ErrNoRows,
+		},
+		"error: db failed": {
+			givenID:     1,
+			expDBFailed: true,
+			expErr:      errors.New("models: unable to select from product: bind failed to execute query: sql: database is closed"),
+		},
+	}
+
+	for name, tc := range tcs {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			TestWithTxDB(t, func(tx db.ContextExecutor) {
+				// Given
+				repo := New(tx)
+				if tc.expDBFailed {
+					dbMock, _, _ := sqlmock.New()
+					dbMock.Close()
+					repo = New(dbMock)
+				}
+				testdata.LoadTestSQLFile(t, tx, "testdata/delete_product_by_id.sql")
+
+				// When
+				err := repo.Delete(ctx, tc.givenID)
+
+				// Then
+				if tc.expErr != nil {
+					require.EqualError(t, err, tc.expErr.Error())
+				} else {
+					require.NoError(t, err)
+				}
+			})
 		})
 	}
 }

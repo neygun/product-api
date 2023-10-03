@@ -1,11 +1,11 @@
 package main
 
 import (
+	"chi-demo/db"
 	"chi-demo/handler"
 	"chi-demo/repository"
 	"chi-demo/route"
 	"chi-demo/service"
-	"database/sql"
 	"net/http"
 	"os"
 
@@ -36,9 +36,8 @@ func main() {
 	// }
 
 	logger := log.GetLogger()
-	connectionStr := "postgres://postgres:postgres@localhost:5432/scc-pg?sslmode=disable"
 
-	db, err := sql.Open("postgres", connectionStr)
+	db, err := db.Init()
 	if err != nil {
 		panic(err)
 	}
