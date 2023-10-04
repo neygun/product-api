@@ -113,6 +113,9 @@ func TestImpl_GetById(t *testing.T) {
 					require.EqualError(t, err, tc.expErr.Error())
 				} else {
 					require.NoError(t, err)
+					require.NotZero(t, result.CreatedAt)
+					require.NotZero(t, result.UpdatedAt)
+					require.NotZero(t, result.DeletedAt)
 					if !cmp.Equal(tc.expRs, result,
 						cmpopts.IgnoreFields(model.Product{}, "CreatedAt", "UpdatedAt", "DeletedAt")) {
 						t.Errorf("\n order mismatched. \n expected: %+v \n got: %+v \n diff: %+v", tc.expRs, result,
@@ -127,6 +130,7 @@ func TestImpl_GetById(t *testing.T) {
 
 func TestImpl_GetAll(t *testing.T) {
 	type args struct {
+		isEmpty     bool
 		expDBFailed bool
 		expRs       []model.Product
 		expErr      error
@@ -148,7 +152,8 @@ func TestImpl_GetAll(t *testing.T) {
 			},
 		},
 		"empty": {
-			expRs: []model.Product{},
+			isEmpty: true,
+			expRs:   []model.Product{},
 		},
 		"error: db failed": {
 			expDBFailed: true,
@@ -167,7 +172,9 @@ func TestImpl_GetAll(t *testing.T) {
 					dbMock.Close()
 					repo = New(dbMock)
 				}
-				testdata.LoadTestSQLFile(t, tx, "testdata/get_all_products.sql")
+				if !tc.isEmpty {
+					testdata.LoadTestSQLFile(t, tx, "testdata/get_all_products.sql")
+				}
 
 				// When
 				result, err := repo.GetAll(ctx)
