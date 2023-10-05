@@ -44,9 +44,7 @@ func main() {
 
 	productRepo := repository.New(db)
 	productService := service.New(productRepo)
-	productHandler := handler.ProductHandler{
-		ProductService: productService,
-	}
+	productHandler := handler.New(productService)
 
 	port := os.Getenv("PORT")
 	if port == "" {

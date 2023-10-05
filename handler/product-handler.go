@@ -12,7 +12,13 @@ import (
 )
 
 type ProductHandler struct {
-	ProductService service.ProductService
+	productService service.ProductService
+}
+
+func New(productService service.ProductService) ProductHandler {
+	return ProductHandler{
+		productService: productService,
+	}
 }
 
 type HandlerErr struct {
@@ -74,7 +80,7 @@ func (productHandler ProductHandler) GetOne() http.HandlerFunc {
 			}
 		}
 
-		product, err := productHandler.ProductService.GetOne(r.Context(), id)
+		product, err := productHandler.productService.GetOne(r.Context(), id)
 		if err != nil {
 			return err
 		}
@@ -86,7 +92,7 @@ func (productHandler ProductHandler) GetOne() http.HandlerFunc {
 
 func (productHandler ProductHandler) GetProducts() http.HandlerFunc {
 	return ErrHandler(func(w http.ResponseWriter, r *http.Request) error {
-		products, err := productHandler.ProductService.GetAll(r.Context())
+		products, err := productHandler.productService.GetAll(r.Context())
 		if err != nil {
 			return err
 		}
@@ -121,7 +127,7 @@ func (productHandler ProductHandler) CreateProduct() http.HandlerFunc {
 			}
 		}
 
-		err := productHandler.ProductService.Create(r.Context(), inputProduct)
+		err := productHandler.productService.Create(r.Context(), inputProduct)
 		if err != nil {
 			// log.Printf("Error when create product: %s", err.Error())
 			return err
@@ -157,7 +163,7 @@ func (productHandler ProductHandler) DeleteProduct() http.HandlerFunc {
 			}
 		}
 
-		err = productHandler.ProductService.Delete(r.Context(), id)
+		err = productHandler.productService.Delete(r.Context(), id)
 		if err != nil {
 			return err
 		}
